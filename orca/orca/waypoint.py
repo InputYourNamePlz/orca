@@ -21,8 +21,9 @@ from orca_interfaces.msg import OrcaPose
 ##########################################################
 
 ##########################################################
+import rclpy.node
 from tf2_msgs.msg import TFMessage
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Header
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 from geometry_msgs.msg import Point
@@ -41,6 +42,9 @@ waypoint_data = [
 # 얼마나 가까워져야 도착했다고 판단할 지 
 arrival_check_radius = 1.5
 
+# YOLO가 돌아갈 waypoint 구간
+yolo_section = np.array([3,4])
+
 
 
 class WaypointPublisher(Node):
@@ -49,6 +53,7 @@ class WaypointPublisher(Node):
     global waypoint_data
     waypoint_counter=0
     waypoint_stop_time=0.0
+    global yolo_section
 
     current_x=0.0
     current_y=0.0
@@ -63,6 +68,7 @@ class WaypointPublisher(Node):
 
         self.publisher = self.create_publisher(OrcaPose, 'waypoint_pose', 10)
         self.arrival_radius_publisher = self.create_publisher(Float32, 'arrival_radius', 10)
+        self.yolo_switch_publisher = self.create_publisher(Header, 'yolo_switch', 10)
         self.timer = self.create_timer(0.1, self.timer_callback)
 
 
@@ -118,6 +124,12 @@ class WaypointPublisher(Node):
         waypoint_msg.y = self.waypoint_y
         waypoint_msg.yaw = 0.0
         self.publisher.publish(waypoint_msg)
+
+        if(np.isin(yolo_section, self.waypoint_counter)):
+            yolo_switch_msg = Header()
+            yolo_switch_msg.stamp = self.get_clock().now().to_msg()
+            self.yolo_switch_publisher.publish(yolo_switch_msg)
+
 
         arrival_check_radius_msg = Float32()
         arrival_check_radius_msg.data = arrival_check_radius

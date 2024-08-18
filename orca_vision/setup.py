@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'orca_localization'
+package_name = 'orca_vision'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'orca_scan_matcher=orca_localization.orca_scan_matcher:main'
+            'object_detector = orca_vision.object_detector:main',
         ],
     },
 )

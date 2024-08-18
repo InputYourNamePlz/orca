@@ -10,8 +10,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 
 class LidarImuProcessor(Node):
-
-    z_threshold = -0.1  # 예: 10cm 이하의 점은 무시
+    z_threshold = -0.5  # 예: 10cm 이하의 점은 무시
 
     def __init__(self):
         super().__init__('lidar_imu_processor')

@@ -4,6 +4,8 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from sensor_msgs.msg import Imu, LaserScan, PointCloud2, PointField
 from tf2_ros import TransformBroadcaster
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 from geometry_msgs.msg import TransformStamped
 
 import numpy as np
@@ -33,6 +35,9 @@ class OrcaScanMatcher(Node):
 
         self.pointcloud_publisher = self.create_publisher(PointCloud2, 'curr_point_cloud', 10)
         self.pointcloud_publisher2 = self.create_publisher(PointCloud2, 'prev_point_cloud', 10)
+        
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.imu_data=None
         self.prev_scan=None
@@ -64,34 +69,54 @@ class OrcaScanMatcher(Node):
             self.prev_scan=self.lidar_to_xy(msg)
             self.prev_yaw=self.imu_to_yaw(msg, self.imu_data)
             self.initial_yaw=self.prev_yaw
+
+            # tf publish
+            tf=TransformStamped()
+            tf.header.frame_id = 'odom'
+            tf.child_frame_id = 'base_link'
+            self.tf_broadcaster.sendTransform(tf)
             return
         
         curr_imu_data=self.imu_data
         curr_scan=self.lidar_to_xy(msg)
         curr_scan_origin=np.copy(curr_scan)
         curr_yaw=self.imu_to_yaw(msg, curr_imu_data)
-        prev_yaw=self.prev_yaw
-        prev_scan=self.prev_scan
+        prev_yaw=np.copy(self.prev_yaw)
+        prev_scan=np.copy(self.prev_scan)
+
+        # for best effort( time over 100ms )
+        self.prev_scan=curr_scan_origin
+        self.prev_yaw=curr_yaw
         
+
         start_time=time.time()
         ###################################
         # rotating scan with IMU data
 
-        yaw_diff = np.deg2rad(curr_yaw - self.prev_yaw) 
+        yaw_diff = np.deg2rad(curr_yaw - prev_yaw) 
         curr_scan=self.rotate_points(curr_scan, yaw_diff)
 
         ###################################
         ###################################
         # rotating scan with Polar Scan Matching
 
-        yaw_diff = -np.deg2rad(self.polar_scan_matching(curr_scan, prev_scan))
-        curr_scan=self.rotate_points(curr_scan,yaw_diff)
+        #yaw_diff = -np.deg2rad(self.polar_scan_matching(curr_scan, prev_scan))
+        #curr_scan=self.rotate_points(curr_scan,yaw_diff)
 
         ###################################
 
 
         aligned, (delta_x, delta_y), iterations = self.point_to_line_icp(curr_scan, prev_scan)
         end_time=time.time()
+
+        transform: TransformStamped = self.tf_buffer.lookup_transform(
+            'odom',
+            'base_link',
+            rclpy.time.Time())
+        
+        # x와 y 좌표를 추출합니다
+        self.odom_x = transform.transform.translation.x
+        self.odom_y = transform.transform.translation.y
 
 
         self.odom_x = self.odom_x + (delta_x*np.cos(np.deg2rad(prev_yaw)) - delta_y*np.sin(np.deg2rad(prev_yaw)))
@@ -176,8 +201,6 @@ class OrcaScanMatcher(Node):
 
 
 
-        self.prev_scan=curr_scan_origin
-        self.prev_yaw=curr_yaw
         
 
 
@@ -210,7 +233,14 @@ class OrcaScanMatcher(Node):
         
         yaw=quat_yaw+gyro_yaw_change
 
-        return yaw
+        if(self.initial_yaw==None):
+            self.initial_yaw=np.copy(yaw)
+
+        relative_yaw = yaw - self.initial_yaw
+        print(self.initial_yaw)
+
+        return (relative_yaw + 180) % 360 - 180
+        #return yaw
     
     def rotate_points(self, scan, yaw_diff):
 
@@ -305,7 +335,7 @@ class OrcaScanMatcher(Node):
         yaw = np.arctan2(R[1, 0], R[0, 0])
         return R, t, yaw
 
-    def point_to_line_icp(self, source, target, max_iterations=50, tolerance=0.0005):
+    def point_to_line_icp(self, source, target, max_iterations=26, tolerance=0.0000001):
         prev_error = np.inf
         cumulative_R = np.eye(2)
         cumulative_t = np.zeros(2)

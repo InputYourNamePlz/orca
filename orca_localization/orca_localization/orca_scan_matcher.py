@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
+import rclpy.time
 from sensor_msgs.msg import Imu, LaserScan, PointCloud2, PointField
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
@@ -54,6 +55,25 @@ class OrcaScanMatcher(Node):
     def imu_callback(self, msg):
         self.is_imu_data_imported=True
         self.imu_data = msg
+
+        '''
+        tf=TransformStamped()
+        tf.header.frame_id = 'odom'
+        tf.child_frame_id = 'base_link'
+
+        
+        tf.header.stamp = rclpy.time.Time().to_msg()
+        tf.transform.translation.x = 0.0
+        tf.transform.translation.y = 0.0
+        tf.transform.translation.z = 0.0
+        tf.transform.rotation.x = msg.orientation.x
+        tf.transform.rotation.y = msg.orientation.y
+        tf.transform.rotation.z = msg.orientation.z
+        tf.transform.rotation.w = msg.orientation.w
+        
+
+        self.tf_broadcaster.sendTransform(tf)
+        '''
 
 
     def lidar_callback(self, msg):
@@ -158,9 +178,13 @@ class OrcaScanMatcher(Node):
         ###################################
         ###################################
         # tf publish
+        
         tf=TransformStamped()
         tf.header.frame_id = 'odom'
         tf.child_frame_id = 'base_link'
+
+        
+        tf.header.stamp = msg.header.stamp
         tf.transform.translation.x = self.odom_x
         tf.transform.translation.y = self.odom_y
         tf.transform.translation.z = 0.0
@@ -170,8 +194,10 @@ class OrcaScanMatcher(Node):
         tf.transform.rotation.y = 0.0
         tf.transform.rotation.z = -sy
         tf.transform.rotation.w = cy
+        
 
         self.tf_broadcaster.sendTransform(tf)
+        
         ###################################
 
 
@@ -206,7 +232,7 @@ class OrcaScanMatcher(Node):
         quat_yaw=np.rad2deg(np.arctan2(2 * (w*z + x*y), 1 - 2 * (y*y + z*z)))
 
         dt=-np.round((lidar_msg.header.stamp.sec+lidar_msg.header.stamp.nanosec*1e-9) - (imu_msg.header.stamp.sec+imu_msg.header.stamp.nanosec*1e-9),5)
-        gyro_yaw_change = imu_msg.angular_velocity.z * (dt+0.02) # delay of lidar
+        gyro_yaw_change = imu_msg.angular_velocity.z * (dt) # delay of lidar
         
         yaw=quat_yaw+gyro_yaw_change
 
@@ -305,7 +331,7 @@ class OrcaScanMatcher(Node):
         yaw = np.arctan2(R[1, 0], R[0, 0])
         return R, t, yaw
 
-    def point_to_line_icp(self, source, target, max_iterations=50, tolerance=0.0005):
+    def point_to_line_icp(self, source, target, max_iterations=30, tolerance=0.0000001):
         prev_error = np.inf
         cumulative_R = np.eye(2)
         cumulative_t = np.zeros(2)

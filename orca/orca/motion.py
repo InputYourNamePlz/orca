@@ -25,14 +25,14 @@ from geometry_msgs.msg import TransformStamped
 
 class MotionController(Node):
 
-    follower_realtime_x:0.0
-    follower_realtime_y:0.0
+    follower_realtime_x=0.0
+    follower_realtime_y=0.0
 
-    current_x:0.0
-    current_y:0.0
-    current_yaw:0.0
+    current_x=0.0
+    current_y=0.0
+    current_yaw=0.0
 
-    yaw_difference:0.0
+    yaw_difference=0.0
     counter=0
 
 

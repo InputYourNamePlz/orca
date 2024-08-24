@@ -38,7 +38,7 @@ class ObjectDetection(Node):
         self.yolo_switch_subscriber = self.create_subscription(Header, '/yolo_switch', self.yolo_switch_callback, 10)
         
         self.bridge = CvBridge()
-        self.model = YOLO('/home/nayoung/obj_detect_ws/src/object_detection_pkg/best.pt')  # Path to model
+        self.model = YOLO('../models/best.pt')  # Path to model
         
         # Target shape and color
         self.target_shape = 'circle'  # Modify as needed

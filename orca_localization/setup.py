@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'orca_scan_matcher=orca_localization.orca_scan_matcher:main'
+            'orca_scan_matcher=orca_localization.orca_scan_matcher:main',
+            'scan_stabilizer=orca_localization.scan_stabilizer:main',
         ],
     },
 )

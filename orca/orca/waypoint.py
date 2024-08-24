@@ -33,10 +33,10 @@ from geometry_msgs.msg import Point
 
 # Waypoint data를 여기에 넣으면 됩니다!
 waypoint_data = [
-    {'x' : 25.5, 'y' : 0.0, 'delay_time' : 3.0},
-    {'x' : 26.0, 'y' : 9.0, 'delay_time' : 3.0},
-    {'x' : 1.5, 'y' : 9.0, 'delay_time' : 3.0},
-    {'x' : 0.0, 'y' : 0.0, 'delay_time' : 3.0},
+    {'x' : 0.0, 'y' : 3.0, 'delay_time' : 3.0},
+    {'x' : 3.0, 'y' : -2.0, 'delay_time' : 3.0},
+    {'x' : 1.0, 'y' : -2.0, 'delay_time' : 3.0},
+    {'x' : 1.0, 'y' : 0.0, 'delay_time' : 3.0},
 ]
 
 # 얼마나 가까워져야 도착했다고 판단할 지 

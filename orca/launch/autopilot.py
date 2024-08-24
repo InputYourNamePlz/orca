@@ -8,35 +8,27 @@ import os
 def generate_launch_description():
 
     scan_topic='/projected_scan'
+    
     return LaunchDescription([
         
         Node(
             package='orca',
             executable='pose',
-            name='pose',
-            remappings=[
-                ('/scan', scan_topic)
-            ]
+            name='pose'
         ),
         
         
         Node(
             package='orca',
             executable='autopilot',
-            name='autopilot',
-            remappings=[
-                ('/scan', scan_topic)
-            ]
+            name='autopilot'
         ),
         
         
         Node(
             package='orca',
             executable='motion',
-            name='motion',
-            remappings=[
-                ('/scan', scan_topic)
-            ]
+            name='motion'
         ),
         
     ])

@@ -7,9 +7,9 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
 from rclpy.qos import QoSProfile
 
-import math
+#import math
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 #import quaternion
 import time
 
@@ -41,11 +41,11 @@ class Autopilot(Node):
     waypoint_relative_x=0.0
     waypoint_relative_y=0.0
 
-    jump_distance = 0.5
+    jump_distance = 0.2
     tree_node_count = 18
     spreading_angle = 0.628
     max_iteration = 1000
-    obstacle_avoidance_radius = 0.7
+    obstacle_avoidance_radius = 0.2
     
     turn_panelty_k = 3.5 #2.5일때 ㄱㅊ았음
     heading_to_wp_panelty_k = 1.00
@@ -66,7 +66,7 @@ class Autopilot(Node):
             LaserScan,
             '/projected_scan',
             self.lidar_callback,
-            10#qos_profile
+            qos_profile
             )
         
         self.waypoint_pose_subscription = self.create_subscription(
@@ -116,6 +116,7 @@ class Autopilot(Node):
         self.arrival_radius = arrival_radius_msg.data-0.6
 
     def lidar_callback(self, lidar_msg):
+        #self.get_logger().info("Lidar Data")
         self.lidar_ranges = np.array(lidar_msg.ranges)
         self.lidar_angle_max = lidar_msg.angle_max
         self.lidar_angle_min = lidar_msg.angle_min
@@ -131,6 +132,7 @@ class Autopilot(Node):
 
         # 벡터 연산을 통해 빠르게 각 Point에 대한 Radian 값 저장
         if (len(self.lidar_ranges)==0):
+            self.get_logger().info("No Lidar Data")
             return
     
 
@@ -154,6 +156,10 @@ class Autopilot(Node):
 
         self.tree_search()
         route_tree=np.array(self.tree[0:self.route_node_count+1])
+
+        #self.get_logger().info(f'{route_tree}')
+
+
         if(len(route_tree)>4):
             follower=np.array(route_tree[3])
         elif(len(route_tree)==0):
@@ -170,7 +176,7 @@ class Autopilot(Node):
             marker.type = Marker.LINE_STRIP
             marker.action = Marker.ADD
             marker.pose.orientation.w = 1.0
-            marker.scale.x = 0.1  # 선의 두께
+            marker.scale.x = 0.02  # 선의 두께
 
             marker.color.r = 1.0
             marker.color.g = 0.0

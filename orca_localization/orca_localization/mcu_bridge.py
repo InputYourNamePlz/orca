@@ -42,6 +42,7 @@ class MCUBridge(Node):
         self.pitch = 0.0
         self.x_angular_vel = 0.0
         self.y_angular_vel = 0.0
+        self.z_angular_vel = 0.0
 
         self.desired_linear_vel = 0.0
         self.desired_angular_vel = 0.0
@@ -80,9 +81,12 @@ class MCUBridge(Node):
         self.get_logger().info(f'Data to MCU: {data}')
 
     def processTwist(self):
-        thruster = 1500 + self.desired_linear_vel*300
-        if(thruster>1650): thruster=1650
-        if(thruster<1450): thruster=1450
+        #thruster = 1500 + self.desired_linear_vel*300
+        
+        if (self.desired_linear_vel>0):thruster=1600
+        else:thruster=1500
+        #if(thruster>1500): thruster=1650
+        #if(thruster<1450): thruster=1450
         rudder = 90 - self.desired_angular_vel*500
         if(rudder>160): rudder=160
         elif(rudder<20): rudder=20

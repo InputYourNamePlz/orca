@@ -20,6 +20,12 @@ def generate_launch_description():
             name='scan_stabilizer'
         ),
         
+        Node(
+            package='orca_localization',
+            executable='mcu_bridge',
+            name='mcu_bridge'
+        ),
+        
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 os.path.join(

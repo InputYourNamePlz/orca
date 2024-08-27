@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'orca_scan_matcher=orca_localization.orca_scan_matcher:main',
             'scan_stabilizer=orca_localization.scan_stabilizer:main',
+            'mcu_bridge=orca_localization.mcu_bridge:main',
         ],
     },
 )

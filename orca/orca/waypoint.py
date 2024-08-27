@@ -33,9 +33,9 @@ from geometry_msgs.msg import Point
 
 # Waypoint data를 여기에 넣으면 됩니다!
 waypoint_data = [
-    {'x' : 0.0, 'y' : 3.0, 'delay_time' : 3.0},
-    {'x' : 3.0, 'y' : -2.0, 'delay_time' : 3.0},
-    {'x' : 1.0, 'y' : -2.0, 'delay_time' : 3.0},
+    {'x' : 3.0, 'y' : 0.0, 'delay_time' : 3.0},
+    {'x' : 1.0, 'y' : 0.0, 'delay_time' : 3.0},
+    {'x' : 3.0, 'y' : 0.0, 'delay_time' : 3.0},
     {'x' : 1.0, 'y' : 0.0, 'delay_time' : 3.0},
 ]
 

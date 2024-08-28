@@ -45,7 +45,7 @@ class Autopilot(Node):
     tree_node_count = 18
     spreading_angle = 0.628
     max_iteration = 1000
-    obstacle_avoidance_radius = 0.2
+    obstacle_avoidance_radius = 0.25
     
     turn_panelty_k = 3.5 #2.5일때 ㄱㅊ았음
     heading_to_wp_panelty_k = 1.00
@@ -258,7 +258,7 @@ class Autopilot(Node):
 
     def tree_search(self):
         index = 1
-        while index<200:
+        while index<15:
 
             # 마지막 노드가 원 안에 도착했는지 확인. 확인했으면 걍 둘려보냄
             if np.sqrt( (self.tree[index , 0]-self.waypoint_relative_x)**2 + (self.tree[index , 1]-self.waypoint_relative_y)**2 ) < self.arrival_radius:

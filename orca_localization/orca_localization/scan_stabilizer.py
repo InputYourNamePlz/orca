@@ -65,7 +65,7 @@ class LidarImuProcessor(Node):
         self.original_scan_pub.publish(original_scan)
 
         # LiDAR 데이터를 3D 점으로 변환
-        angles = np.arange(self.laser_data.angle_min, self.laser_data.angle_max, self.laser_data.angle_increment)
+        angles = np.arange(self.laser_data.angle_min, self.laser_data.angle_max+self.laser_data.angle_increment, self.laser_data.angle_increment)
         points = np.array([np.cos(angles) * self.laser_data.ranges,
                            np.sin(angles) * self.laser_data.ranges,
                            np.zeros_like(angles)]).T

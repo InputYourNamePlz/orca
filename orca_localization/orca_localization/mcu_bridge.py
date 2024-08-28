@@ -18,11 +18,17 @@ beta = [0,np.pi/2,np.pi,np.pi*3/2]
 
 
 
+kp=0.7
+ki=0.5
+kd=1.50
+dt=0.05
+
 
 
 class MCUBridge(Node):
 
     global P, B, T, a, beta #, s
+    global kp, ki, kd, dt
 
     def __init__(self):
         super().__init__('mcu_bridge')
@@ -48,6 +54,10 @@ class MCUBridge(Node):
         self.desired_angular_vel = 0.0
 
         self.alpha=[0.0,0.0,0.0,0.0]
+        
+        
+        self.prev_error=0.0
+        self.integral=0.0
 
 
 
@@ -68,6 +78,7 @@ class MCUBridge(Node):
     def twist_callback(self, msg):
         self.desired_linear_vel = msg.linear.x
         self.desired_angular_vel = msg.angular.z
+        #self.get_logger().info(f'{self.desired_linear_vel},{self.desired_angular_vel}')
 
         
     def timer_callback(self):
@@ -78,19 +89,30 @@ class MCUBridge(Node):
         data = f',{servo1:.0f},{servo2:.0f},{servo3:.0f},{servo4:.0f},{thruster:.0f},{rudder:.0f},\n'
         
         self.serial_port.write(data.encode())
-        self.get_logger().info(f'Data to MCU: {data}')
+        #self.get_logger().info(f'Data to MCU: {data}')
 
     def processTwist(self):
         #thruster = 1500 + self.desired_linear_vel*300
         
-        if (self.desired_linear_vel>0):thruster=1600
+        if (self.desired_linear_vel>0):thruster=1560
         else:thruster=1500
         #if(thruster>1500): thruster=1650
         #if(thruster<1450): thruster=1450
-        rudder = 90 - self.desired_angular_vel*500
-        if(rudder>160): rudder=160
-        elif(rudder<20): rudder=20
+        #rudder = 90 - self.desired_angular_vel*500
 
+        p_term = self.desired_angular_vel*kp
+        # i_term
+        d_term = kd*(self.prev_error)/dt
+        self.prev_error = self.desired_angular_vel
+
+        rudder = 90 - (p_term - d_term)*10
+        
+        self.get_logger().info(f'{rudder:.1f}, {p_term:.1f}, {d_term:.1f}')
+        
+        if(rudder>170): rudder=170
+        elif(rudder<10): rudder=10
+        
+        #return 1500, rudder
         return thruster, rudder
     
     def processPlatform(self):

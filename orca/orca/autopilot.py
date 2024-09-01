@@ -12,6 +12,7 @@ import numpy as np
 #import matplotlib.pyplot as plt
 #import quaternion
 import time
+from scipy.spatial import cKDTree
 
 
 from orca_interfaces.msg import OrcaPose
@@ -41,8 +42,8 @@ class Autopilot(Node):
     waypoint_relative_x=0.0
     waypoint_relative_y=0.0
 
-    jump_distance = 0.2
-    tree_node_count = 18
+    jump_distance = 0.4
+    tree_node_count = 10
     spreading_angle = 0.628
     max_iteration = 1000
     obstacle_avoidance_radius = 0.25
@@ -113,7 +114,7 @@ class Autopilot(Node):
         self.current_yaw=current_pose_msg.yaw
 
     def arrival_radius_callback(self, arrival_radius_msg):
-        self.arrival_radius = arrival_radius_msg.data-0.6
+        self.arrival_radius = arrival_radius_msg.data-0.05
 
     def lidar_callback(self, lidar_msg):
         #self.get_logger().info("Lidar Data")
@@ -142,9 +143,21 @@ class Autopilot(Node):
         #    points_radian=self.lidar_angle_min + self.lidar_angle_increment * np.arange(len(self.lidar_ranges))
         points_radian=self.lidar_angle_min + self.lidar_angle_increment * np.arange(len(self.lidar_ranges))
         
-        self.points_xy=np.empty((len(self.lidar_ranges),2))
-        self.points_xy[:,0] = self.lidar_ranges * np.cos(points_radian)
-        self.points_xy[:,1] = self.lidar_ranges * np.sin(points_radian)
+        
+        # 0보다 크고 obstacle_radius보다 작은 점들만 선택
+        mask = (self.lidar_ranges > 0) & (self.lidar_ranges < 40)
+        filtered_distances = self.lidar_ranges[mask]
+        filtered_angles = points_radian[mask]
+        
+        # 극좌표를 직교좌표로 변환
+        x = filtered_distances * np.cos(filtered_angles)
+        y = filtered_distances * np.sin(filtered_angles)
+
+        self.points_xy=np.column_stack((x,y))
+
+        self.kdtree = cKDTree(self.points_xy)
+
+
 
 
         # Waypoint의 상대적 위치 계산
@@ -152,20 +165,23 @@ class Autopilot(Node):
 
 
         self.tree = np.zeros((self.max_iteration,2))
-        self.tree[0:2,]=[[0,0],[self.jump_distance,0]]
+        self.tree[0:2,]=[[0,0],[self.jump_distance/2,0]]
 
         self.tree_search()
         route_tree=np.array(self.tree[0:self.route_node_count+1])
+        #print(self.route_node_count)
 
         #self.get_logger().info(f'{route_tree}')
 
 
-        if(len(route_tree)>4):
-            follower=np.array(route_tree[3])
-        elif(len(route_tree)==0):
-            follower=np.array([0,0])
+        if(len(route_tree)>5):
+            follower=np.array(route_tree[4])
+        elif(len(route_tree)<=2):
+            follower=np.array([0.0,0.0])
         else:
             follower=np.array(route_tree[-1])
+
+        print(follower)
 
 
         if (len(self.tree)!=0):
@@ -182,6 +198,9 @@ class Autopilot(Node):
             marker.color.g = 0.0
             marker.color.b = 1.0
             marker.color.a = 1.0
+            
+            if(len(route_tree)>4): route_tree=np.vstack(([0,0],route_tree[4:]))
+
             for x, y in route_tree:
                 point = Point()
                 point.x = x
@@ -259,10 +278,11 @@ class Autopilot(Node):
     def tree_search(self):
         index = 1
         while index<15:
+            self.route_node_count=index
 
             # 마지막 노드가 원 안에 도착했는지 확인. 확인했으면 걍 둘려보냄
             if np.sqrt( (self.tree[index , 0]-self.waypoint_relative_x)**2 + (self.tree[index , 1]-self.waypoint_relative_y)**2 ) < self.arrival_radius:
-                self.route_node_count=index
+                print(index)
                 return
             if (index>self.max_iteration-2):
                 return
@@ -279,9 +299,11 @@ class Autopilot(Node):
             for idx, next_node in enumerate(next_nodes):
 
                 # lidar 점이랑 가까운게 있으면 컽.
-                distances = np.sqrt( (self.points_xy[:,0] - next_node[0])**2 + (self.points_xy[:,1] - next_node[1])**2 )
-                points_count_within_radius = distances[distances<self.obstacle_avoidance_radius]
-                if (len(points_count_within_radius)!=0):
+                #distances = np.sqrt( (self.points_xy[:,0] - next_node[0])**2 + (self.points_xy[:,1] - next_node[1])**2 )
+                #points_count_within_radius = distances[distances<self.obstacle_avoidance_radius]
+                distance, _ = self.kdtree.query(next_node, k=1)
+
+                if (distance<=self.obstacle_avoidance_radius):
                     next_nodes_score[idx]=-np.inf
                     continue
 
@@ -305,7 +327,6 @@ class Autopilot(Node):
 
             self.tree[index+1,]=optimal_next_node
             index+=1
-
 
 
 

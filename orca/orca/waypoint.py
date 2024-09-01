@@ -33,14 +33,14 @@ from geometry_msgs.msg import Point
 
 # Waypoint data를 여기에 넣으면 됩니다!
 waypoint_data = [
-    {'x' : 2.0, 'y' : 0.0, 'delay_time' : 3.0},
-    {'x' : 0.5, 'y' : 0.0, 'delay_time' : 3.0},
-    {'x' : 2.0, 'y' : 0.0, 'delay_time' : 3.0},
-    {'x' : 0.5, 'y' : 0.0, 'delay_time' : 3.0},
+    {'x' : 6.0, 'y' : 0.0, 'delay_time' : 3.0},
+    {'x' : 1.0, 'y' : 0.0, 'delay_time' : 3.0},
+    {'x' : 6.0, 'y' : 0.0, 'delay_time' : 3.0},
+    {'x' : 1.0, 'y' : 0.0, 'delay_time' : 3.0},
 ]
 
 # 얼마나 가까워져야 도착했다고 판단할 지 
-arrival_check_radius = 0.75
+arrival_check_radius = 2.0
 
 # YOLO가 돌아갈 waypoint 구간
 yolo_section = [3,4]
@@ -191,7 +191,7 @@ class WaypointPublisher(Node):
             points.append(Point(x=x,y=y,z=0.0))
         
         circle_marker_msg=Marker()
-        circle_marker_msg.header.frame_id="odom"
+        circle_marker_msg.header.frame_id="map"
         circle_marker_msg.header.stamp=self.get_clock().now().to_msg()
         circle_marker_msg.ns="waypoint"
         circle_marker_msg.type=Marker.LINE_STRIP
@@ -215,7 +215,7 @@ class WaypointPublisher(Node):
             gauge_points.append(Point(x=x,y=y,z=0.0))
         
         circle_gauge_marker_msg=Marker()
-        circle_gauge_marker_msg.header.frame_id="odom"
+        circle_gauge_marker_msg.header.frame_id="map"
         circle_gauge_marker_msg.header.stamp=self.get_clock().now().to_msg()
         circle_gauge_marker_msg.ns="waypoint"
         circle_gauge_marker_msg.type=Marker.LINE_STRIP

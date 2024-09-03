@@ -21,6 +21,8 @@ import cv2
 from ultralytics import YOLO
 import torch
 import math
+import threading
+import time
 ###################
 
 
@@ -39,7 +41,7 @@ class ObjectDetection(Node):
         self.yolo_switch_subscriber = self.create_subscription(Header, '/yolo_switch', self.yolo_switch_callback, 10)
         
         #self.bridge = CvBridge()
-        self.model = YOLO('/home/lee/ws/src/best.pt')  # Path to model
+        self.model = YOLO('/home/orinnx/Desktop/yolo_models/best.pt')  # Path to model
         
         # Target shape and color
         self.target_shape = 'circle'  # Modify as needed
@@ -47,14 +49,15 @@ class ObjectDetection(Node):
 
         # Color range dictionary
         self.color_ranges = {
-    'red': ([0, 100, 100], [10, 255, 255]),
-    'red2': ([170, 100, 100], [180, 255, 255]),
-    'orange': ([11, 170, 150], [24, 255, 255]),  
-    'yellow': ([25, 100, 100], [40, 255, 255]),  
-    'green': ([41, 100, 50], [90, 255, 255]),   
-    'blue': ([90, 50, 70], [128, 255, 255]),
-    'black': ([0, 0, 0], [180, 255, 30])
-}
+            'red': ([0, 100, 100], [10, 255, 255]),
+            'red2': ([170, 100, 100], [180, 255, 255]),
+            'orange': ([11, 170, 150], [24, 255, 255]),  
+            'yellow': ([25, 100, 100], [40, 255, 255]),  
+            'green': ([41, 100, 50], [90, 255, 255]),   
+            'blue': ([90, 50, 70], [128, 255, 255]),
+            'black': ([0, 0, 0], [180, 255, 30])
+            }
+
         
         # 카메라 매트릭스 및 왜곡 계수 설정 
         self.camera_matrix = np.array([
@@ -75,7 +78,15 @@ class ObjectDetection(Node):
 
         self.yolo_switch_time = None # when it's pressed, yolo runs for 1 sec
 
-        self.cap = cv2.VideoCapture('/dev/video2')
+        self.cap = cv2.VideoCapture('/dev/video0')
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        self.thread = threading.Thread(target=self.cam_read_thread)
+        self.thread.daemon = True
+        self.thread.start()
+
+        self.frame = None
+        self.isFrameGot = False
 
 
 
@@ -90,10 +101,13 @@ class ObjectDetection(Node):
 
     def yolo_switch_callback(self, msg):       
         if self.yaw == None: return
-        ret, frame = self.cap.read()
+        if self.isFrameGot == False: return
+        
+        
+
             
         # 프레임을 그레이스케일로 변환
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
 
         # 가우시안 블러 적용하여 노이즈 제거
         blurred = cv2.GaussianBlur(gray, (21, 21), 0)
@@ -105,7 +119,7 @@ class ObjectDetection(Node):
         illumination_color = cv2.merge([illumination] * 3)
 
         # 조명 성분을 사용해 보정된 이미지 생성
-        corrected_frame = cv2.multiply(frame.astype(np.float32), illumination_color.astype(np.float32) / 255.0)
+        corrected_frame = cv2.multiply(self.frame.astype(np.float32), illumination_color.astype(np.float32) / 255.0)
         corrected_frame = np.clip(corrected_frame, 0, 255).astype(np.uint8)
 
         
@@ -116,6 +130,11 @@ class ObjectDetection(Node):
     #####################################################
     #####################################################
     
+    def cam_read_thread(self):
+        while rclpy.ok():
+            ret, self.frame = self.cap.read()
+            if ret==True: self.isFrameGot=True
+            time.sleep(0.01)
 
 
 

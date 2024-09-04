@@ -23,7 +23,7 @@ from orca_interfaces.msg import OrcaPose
 ##########################################################
 import rclpy.node
 from tf2_msgs.msg import TFMessage
-from std_msgs.msg import Float32, Header
+from std_msgs.msg import Float32, Header, Int32
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 from geometry_msgs.msg import Point
@@ -32,28 +32,34 @@ from geometry_msgs.msg import Point
 
 
 # Waypoint data를 여기에 넣으면 됩니다!
-waypoint_data = [
-    {'x' : 5.0, 'y' : 0.0, 'delay_time' : 3.0},
-    {'x' : 0.0, 'y' : 0.0, 'delay_time' : 3.0},
-    {'x' : 5.0, 'y' : 0.0, 'delay_time' : 3.0},
-    {'x' : 0.0, 'y' : 0.0, 'delay_time' : 3.0},
+waypoint_dict = [
+    {'order': 1, 'x' : 5.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    {'order': 3, 'x' : 5.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': True},
+    {'order': 4, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+]
+
+yolo_waypoint_dict = [
+    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
 ]
 
 # 얼마나 가까워져야 도착했다고 판단할 지 
 arrival_check_radius = 1.5
 
-# YOLO가 돌아갈 waypoint 구간
-yolo_section = [3,4]
 
 
 
 class WaypointPublisher(Node):
 
     global arrival_check_radius
-    global waypoint_data
-    waypoint_counter=0
-    waypoint_stop_time=0.0
-    global yolo_section
+    global waypoint_dict
+    global yolo_waypoint_dict
+
+    waypoint_data=None
+    waypoint_counter=1
+    current_stay_time=0.0
 
     current_x=0.0
     current_y=0.0
@@ -61,6 +67,9 @@ class WaypointPublisher(Node):
     
     waypoint_x=0.0
     waypoint_y=0.0
+    waypoint_stay_time=0.0
+    waypoint_yolo_active=False
+    
 
     
     def __init__(self):
@@ -82,6 +91,17 @@ class WaypointPublisher(Node):
             self.pose_callback,
             10
         )
+        self.yolo_lane_subscriber = self.create_subscription(
+            Int32,
+            'yolo_lane',
+            self.yolo_lane_callback,
+            10
+        )
+
+        # 현재 Waypoint 정보 꺼내오기
+        self.get_waypoint_data()
+
+
 
 
     ##########################################################
@@ -93,29 +113,24 @@ class WaypointPublisher(Node):
     ##########################################################
         
 
-
     ##########################################################
     def timer_callback(self):
-        # 현재 Waypoint 정보 꺼내오기
-        self.waypoint_x = waypoint_data[self.waypoint_counter]['x']
-        self.waypoint_y = waypoint_data[self.waypoint_counter]['y']
 
         # 현재 Waypoint와의 거리 구하기
         distance = math.sqrt( (self.waypoint_x - self.current_x)**2 + (self.waypoint_y - self.current_y)**2 )
         
         # 거리가 check radius 보다 작으면 카운터 올리기
         if (arrival_check_radius > distance):
-            self.waypoint_stop_time+=0.1
+            self.current_stay_time+=0.1
         else:
-            self.waypoint_stop_time=0.0
+            self.current_stay_time=0.0
 
-        if (self.waypoint_stop_time > waypoint_data[self.waypoint_counter]['delay_time']):
-            if (self.waypoint_counter+1!=len(waypoint_data)):
+        if (self.current_stay_time > self.waypoint_stay_time):
+            if (self.waypoint_counter+1!=len(waypoint_dict)):
                 self.waypoint_counter+=1
-                self.waypoint_stop_time=0.0
+                self.current_stay_time=0.0
 
-                self.waypoint_x = waypoint_data[self.waypoint_counter]['x']
-                self.waypoint_y = waypoint_data[self.waypoint_counter]['y']
+                self.get_waypoint_data()
                 self.marker_refresh()
 
 
@@ -125,17 +140,17 @@ class WaypointPublisher(Node):
         waypoint_msg.yaw = 0.0
         self.publisher.publish(waypoint_msg)
 
-        #if(np.isin(yolo_section, self.waypoint_counter)):
-        #    yolo_switch_msg = Header()
-        #    yolo_switch_msg.stamp = self.get_clock().now().to_msg()
-        #    self.yolo_switch_publisher.publish(yolo_switch_msg)
+
+        if(self.yolo_switch_publisher):
+            yolo_switch_msg = Header()
+            self.yolo_switch_publisher.publish(yolo_switch_msg)
 
 
         arrival_check_radius_msg = Float32()
         arrival_check_radius_msg.data = arrival_check_radius
         self.arrival_radius_publisher.publish(arrival_check_radius_msg)
 
-        self.get_logger().info('Waypoint : %d, time : %.1f, dist : %.2f' % (self.waypoint_counter+1, self.waypoint_stop_time, distance))
+        self.get_logger().info('Waypoint : %d, time : %.1f, dist : %.2f' % (self.waypoint_counter, self.current_stay_time, distance))
 
 
         self.marker_refresh()
@@ -143,11 +158,23 @@ class WaypointPublisher(Node):
 
 
     ##########################################################
+
+
+    def get_waypoint_data(self):
+        self.waypoint_data = (wp for wp in self.waypoints if wp['order'] == self.waypoint_counter)
+        self.waypoint_x = self.waypoint_data['x']
+        self.waypoint_y = self.waypoint_data['y']
+        self.waypoint_stay_time = self.waypoint_data['stay_time']
+        self.waypoint_yolo_active = self.waypoint_data['yolo_switch_active']
+
         
         
     ##########################################################
-    #def marker_timer_callback(self):
-    #    self.marker_refresh()
+
+    def yolo_lane_callback(self, msg):
+        lane = msg.data
+
+    ##########################################################
         
 
     def marker_refresh(self):
@@ -205,7 +232,7 @@ class WaypointPublisher(Node):
         self.waypoint_marker_publisher.publish(circle_marker_msg)
 
 
-        gauge_num_points=int(num_points*(self.waypoint_stop_time/waypoint_data[self.waypoint_counter]['delay_time']))
+        gauge_num_points=int(num_points*(self.current_stay_time/self.waypoint_stay_time))
         radius=arrival_check_radius/2.0
         gauge_points=[]
         for i in range(gauge_num_points+0):

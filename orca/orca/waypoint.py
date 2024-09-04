@@ -40,9 +40,18 @@ waypoint_dict = [
 ]
 
 yolo_waypoint_dict = [
-    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    1:{
+        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    },
+    2:{
+        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    },
+    3:{
+        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    },
 ]
 
 # 얼마나 가까워져야 도착했다고 판단할 지 
@@ -173,6 +182,17 @@ class WaypointPublisher(Node):
 
     def yolo_lane_callback(self, msg):
         lane = msg.data
+        if lane not in yolo_waypoint_dict:
+            self.get_logger().info(f"Error: {lane} is not a valid lane")
+            return
+        
+        for yolo_waypoint in yolo_waypoint_dict[lane]:
+            for i, waypoint in enumerate(waypoint_dict):
+                if waypoint['order'] == yolo_waypoint['order']:
+                    waypoint_dict[i] = yolo_waypoint
+        self.get_logger().info(f"YOLO Lane: {lane}")
+            
+                    
 
     ##########################################################
         

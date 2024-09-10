@@ -10,7 +10,7 @@ import time
 
 
 # 전역 변수 설정, 길이 단위 : cm
-P = 3.5 #Plate Center - Moter dist
+P = 2.5 #Plate Center - Moter dist
 B = 5.3 #Base Center - Moter dist
 T = [0,0,10.5]
 a = 1.8 #radius

@@ -1,150 +1,213 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan, Imu
-from geometry_msgs.msg import TransformStamped
-from tf2_ros import TransformBroadcaster
+from sensor_msgs.msg import Imu
+from geometry_msgs.msg import Twist
+import serial
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+from scipy.signal import butter, lfilter
+import threading
+import time
 
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+
+a = 9.5
+b = 10
+c = 10.2
+d = 1.5
+e = 7.5
 
 
-class LidarImuProcessor(Node):
-    z_threshold = -0.5  # 예: 10cm 이하의 점은 무시
+
+class MCUBridge(Node):
+
+    global a,b,c,d,e
 
     def __init__(self):
-        super().__init__('lidar_imu_processor')
-        
-        qos_profile = QoSProfile(
-        reliability=QoSReliabilityPolicy.BEST_EFFORT,
-        history=QoSHistoryPolicy.KEEP_LAST,
-        depth=10
-        )
-        
-        # 구독자 설정
-        self.laser_sub = self.create_subscription(LaserScan, 'scan', self.laser_callback, qos_profile)
-        self.imu_sub = self.create_subscription(Imu, 'imu', self.imu_callback, 10)
-        
-        # 발행자 설정
-        self.original_scan_pub = self.create_publisher(LaserScan, 'original_scan', 10)
-        self.projected_scan_pub = self.create_publisher(LaserScan, 'projected_scan', 10)
-        
-        # TF 브로드캐스터 설정
-        self.tf_broadcaster = TransformBroadcaster(self)
-        
-        self.laser_data = None
-        self.imu_data = None
-        
+        super().__init__('mcu_bridge')
+        self.serial_port = serial.Serial('/dev/ttyESP32', 115200, timeout=1)  # 시리얼포트는 tty 고정해서 쓰면 좋아용
+        self.timer = self.create_timer(0.1, self.timer_callback)  # 100Hz, 필요에 따라 조정
 
-    def laser_callback(self, msg):
-        self.laser_data = msg
-        self.process_data()
+        self.imu_subscriber = self.create_subscription(Imu, 'imu', self.imu_callback, 100)
+        self.twist_subscriber = self.create_subscription(Twist, 'cmd_vel', self.twist_callback, 10)
+
+
+        #self.thread = threading.Thread(target=self.serial_read_thread)
+        #self.thread.daemon = True
+        #self.thread.start()
+
+        self.imu_msg=None
+        self.roll = 0.0
+        self.pitch = 0.0
+        self.x_angular_vel = 0.0
+        self.y_angular_vel = 0.0
+        self.z_angular_vel = 0.0
+
+        self.desired_linear_vel = 0.0
+        self.desired_angular_vel = None
+
+        self.gimbal_desired_theta=0
+        self.gimbal_integral=0
+
+
+        self.alpha=[0.0,0.0,0.0,0.0]
+        
+        
+        self.prev_error=0.0
+        self.integral=0.0
+
+        self.last_time=time.time()
+
+
+
+    def serial_read_thread(self):
+        while rclpy.ok():
+            if self.serial_port.in_waiting > 0:
+                line = self.serial_port.readline().decode('utf-8').strip()
+                if line:
+                    self.get_logger().info(line)
+
 
     def imu_callback(self, msg):
-        # 쿼터니언을 오일러 각도로 변환
-        r = R.from_quat([msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])
-        self.imu_data = r.as_euler('xyz', degrees=True)[:2]  # roll과 pitch만 사용
+        #print(f'{(time.time()-self.last_time)*1000} ms')
+        #self.last_time = time.time()        
+        self.imu_msg=msg
+        #print(msg.header.stamp)
         
-    def process_data(self):
-        if self.laser_data is None or self.imu_data is None:
-            return
 
-        # 원본 스캔 데이터 발행 (imu_link 프레임)
-        original_scan = LaserScan()
-        original_scan.header = self.laser_data.header
-        original_scan.header.frame_id = "imu_link"
-        original_scan.angle_min = self.laser_data.angle_min
-        original_scan.angle_max = self.laser_data.angle_max
-        original_scan.angle_increment = self.laser_data.angle_increment
-        original_scan.time_increment = self.laser_data.time_increment
-        original_scan.scan_time = self.laser_data.scan_time
-        original_scan.range_min = self.laser_data.range_min
-        original_scan.range_max = self.laser_data.range_max
-        original_scan.ranges = self.laser_data.ranges
-        original_scan.intensities = self.laser_data.intensities
-        self.original_scan_pub.publish(original_scan)
+    def twist_callback(self, msg):
+        self.desired_linear_vel = msg.linear.x
+        self.desired_angular_vel = msg.angular.z
+        #self.get_logger().info(f'{self.desired_linear_vel},{self.desired_angular_vel}')
 
-        # LiDAR 데이터를 3D 점으로 변환
-        angles = np.arange(self.laser_data.angle_min, self.laser_data.angle_min+self.laser_data.angle_increment*len(self.laser_data.ranges), self.laser_data.angle_increment)
-        #angles = np.arange(self.laser_data.angle_min, self.laser_data.angle_max, self.laser_data.angle_increment)
-        #angles = np.arange(self.laser_data.angle_min, self.laser_data.angle_max+self.laser_data.angle_increment, self.laser_data.angle_increment)
-
-        points = np.array([np.cos(angles) * self.laser_data.ranges,
-                           np.sin(angles) * self.laser_data.ranges,
-                           np.zeros_like(angles)]).T
-
-        # IMU 데이터를 이용해 점들을 회전
-        r = R.from_euler('xy', self.imu_data, degrees=True)
-        rotated_points = r.apply(points)
-
-        # 투영된 스캔 데이터 생성 (base_link 프레임)
-        projected_scan = LaserScan()
-        projected_scan.header = self.laser_data.header
-        projected_scan.header.frame_id = "base_link"
-        projected_scan.angle_min = self.laser_data.angle_min
-        projected_scan.angle_max = self.laser_data.angle_max
-        projected_scan.angle_increment = self.laser_data.angle_increment
-        projected_scan.time_increment = self.laser_data.time_increment
-        projected_scan.scan_time = self.laser_data.scan_time
-        projected_scan.range_min = self.laser_data.range_min
-        projected_scan.range_max = self.laser_data.range_max
         
-        '''
-        # 투영된 점들의 거리 계산
-        projected_ranges = np.sqrt(rotated_points[:, 0]**2 + rotated_points[:, 1]**2)
-        projected_scan.ranges = projected_ranges.tolist()
+    def timer_callback(self):
+        #print(f'{(time.time()-self.last_time)*1000} ms')
+        #self.last_time = time.time()
+        if(self.imu_msg==None): return
+        elif(self.desired_angular_vel==None): return
+        msg=self.imu_msg
+        x,y,z,w = msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
+        self.roll = np.arctan2(2 * (w * x + y * z),1 - 2 * (x * x + y * y))
+        self.pitch = np.arcsin(2 * (w * y - z * x))
+        self.x_angular_vel, self.y_angular_vel, self.z_angular_vel = msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z
+        #print(self.z_angular_vel)
         
-        # 원본 intensities 유지 (있는 경우)
-        if self.laser_data.intensities:
-            projected_scan.intensities = self.laser_data.intensities
-        '''
         
-        valid_indices = rotated_points[:, 2] >= self.z_threshold
+        thruster, rudder = self.processTwist()
+        servo1, servo2, servo3, servo4 = self.processPlatform()
 
-        # 투영된 점들의 거리 계산 (Z축 필터링 적용)
-        projected_ranges = np.sqrt(rotated_points[:, 0]**2 + rotated_points[:, 1]**2)
-        filtered_ranges = np.where(valid_indices, projected_ranges, float('inf'))
-        projected_scan.ranges = filtered_ranges.tolist()
-        
-        # 원본 intensities 유지 (있는 경우, Z축 필터링 적용)
-        if self.laser_data.intensities:
-            filtered_intensities = np.where(valid_indices, self.laser_data.intensities, 0)
-            projected_scan.intensities = filtered_intensities.tolist()
+        data = f',{servo1:.0f},{servo2:.0f},{servo3:.0f},{servo4:.0f},{thruster:.0f},{rudder:.0f},\n'
+        #print(rudder)
+        print(data)
+        self.serial_port.write(data.encode())
+        #self.get_logger().info(f'Data to MCU: {data}')
+        #time.sleep(0.05)
 
-        self.projected_scan_pub.publish(projected_scan)
+    def processTwist(self):
+        #thruster = 1500 + self.desired_linear_vel*300
+        
+        if (self.desired_linear_vel>0):thruster=1580
+        else:thruster=1500
+        #if(thruster>1500): thruster=1650
+        #if(thruster<1450): thruster=1450
+        #rudder = 90 - self.desired_angular_vel*500
 
-        # imu_link에서 base_link로의 변환 발행
-        self.broadcast_transform()
 
-        print("PUBLISHING: original/projected scan, base-imu tf")
+        p_term = (self.desired_angular_vel)*100
+        d_term = self.z_angular_vel*1.5
 
-    def broadcast_transform(self):
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = 'base_link'
-        t.child_frame_id = 'imu_link'
         
-        # IMU 데이터로부터 회전 설정
-        r = R.from_euler('xy', self.imu_data, degrees=True)
-        quat = r.as_quat()
+
+
+        #print(self.desired_angular_vel)
         
-        t.transform.rotation.x = quat[0]
-        t.transform.rotation.y = quat[1]
-        t.transform.rotation.z = quat[2]
-        t.transform.rotation.w = quat[3]
+        rudder = 90 - (p_term - d_term)
+
+        if(self.desired_angular_vel>=0.4): rudder = 30
+        elif(self.desired_angular_vel<=-0.4): rudder = 150
+
+        #print(rudder)
+
+        if self.desired_linear_vel==0 and self.desired_angular_vel==0:
+            rudder=90
+            thruster=1500
+        #print(f'{p_term:.1f}, {d_term:.1f},{rudder:.1f}')
+        #print(self.z_angular_vel)
+        #print(self.z_angular_vel)
         
-        # 여기서는 간단히 위치를 0으로 설정합니다. 실제로는 IMU와 LiDAR의 상대적 위치를 고려해야 할 수 있습니다.
-        t.transform.translation.x = 0.0
-        t.transform.translation.y = 0.0
-        t.transform.translation.z = 0.0
+        #self.get_logger().info(f'{rudder:.1f}, {p_term*100:.1f}, {d_term:.1f}')
         
-        self.tf_broadcaster.sendTransform(t)
+        #if(self.desired_angular_vel>0): rudder=30
+        #elif(self.desired_angular_vel<0): rudder=150
+
+        if(rudder>150): rudder=150
+        elif(rudder<30): rudder=30
+        
+        #return 1500, rudder
+        return thruster, rudder
+    
+    def processPlatform(self):
+        # gimbal front-back inverse
+        roll=-self.roll
+        pitch=-self.pitch
+        roll_angular_v=-self.x_angular_vel
+        pitch_angular_v=-self.y_angular_vel
+
+        p=pitch*30
+        i=0#self.gimbal_integral+ pitch*4/10
+        d=pitch_angular_v/30
+        
+        self.gimbal_desired_theta+=(p+i+d)
+
+        if self.gimbal_desired_theta>17.35: self.gimbal_desired_theta=17.35
+        if self.gimbal_desired_theta<-0.55: self.gimbal_desired_theta=-0.55
+        servo_angle=self.gimbal_calculation(self.gimbal_desired_theta)
+        
+        #print(f'{servo_angle:.1f}')
+        print(f'{np.rad2deg(self.pitch):.1f}')
+        print(f'{self.gimbal_desired_theta:.1f}')
+        print(f'{p:.1f}, {i:.1f}, {d:.1f}, {pitch_angular_v:.1f}, ')
+        return (180-servo_angle),(servo_angle),90,90
+        
+
+        #return self.alpha[0],self.alpha[1],self.alpha[2],self.alpha[3]
+        
+        
+
+        #return 90, front_servo, 90, rear_servo
+        
+        return 90,90,90,90
+    
+    def gimbal_calculation(self, theta):
+
+        theta=theta-6
+        theta=np.deg2rad(theta)
+
+        # servo-to-stabilizer joint-length squared
+        alpha_squared = np.square(b*np.cos(theta)-e)+np.square(a+b*np.sin(theta))
+        #print(np.sqrt(alpha_squared))
+
+        up = alpha_squared+np.square(d)-np.square(c)
+        down = 2*d*np.sqrt(alpha_squared)
+        #print(up, down)
+        
+
+        right_triangle = np.arcsin((b*np.cos(theta)-e)/alpha_squared)
+
+        servo_angle_radian = np.arccos(up/down)+right_triangle
+        
+        return np.rad2deg(servo_angle_radian)
+
+    
+
+    
+    def __del__(self):
+        self.serial_port.close()
 
 def main(args=None):
     rclpy.init(args=args)
-    node = LidarImuProcessor()
-    rclpy.spin(node)
-    node.destroy_node()
+    mcu_bridge = MCUBridge()
+    rclpy.spin(mcu_bridge)
+    mcu_bridge.destroy_node()
     rclpy.shutdown()
 
 if __name__ == '__main__':

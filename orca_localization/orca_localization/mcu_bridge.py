@@ -11,7 +11,7 @@ import time
 
 # 전역 변수 설정, 길이 단위 : cm
 P = 2.5 #Plate Center - Moter dist
-B = 5.0 #Base Center - Moter dist
+B = 3.5#Base Center - Moter dist
 T = [0,0,10.5]
 a = 1.8 #radius
 #s = 9.7 #rod length
@@ -155,8 +155,9 @@ class MCUBridge(Node):
     def processPlatform(self):
         
         
-        phi=self.roll
-        theta=self.pitch
+        phi=-(self.roll)
+        theta=(self.pitch)
+        print(f'roll: {np.rad2deg(phi):.0f}, pitch: {np.rad2deg(theta):.0f}')
         R_roll = np.array([[1,0,0],[0,np.cos(phi),-np.sin(phi)],[0,np.sin(phi),np.cos(phi)]])
         R_pitch = np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
         R_B = R_roll@R_pitch

@@ -9,27 +9,17 @@ import threading
 import time
 
 
-# 전역 변수 설정, 길이 단위 : cm
-P = 2.5 #Plate Center - Moter dist
-B = 5.0 #Base Center - Moter dist
-T = [0,0,10.5]
-a = 1.8 #radius
-#s = 9.7 #rod length
-beta = [0,np.pi/2,np.pi,np.pi*3/2]
-
-
-
-kp=0.7
-ki=0.5
-kd=0.50
-dt=0.05
+a = 9.5
+b = 8.1
+c = 10.2
+d = 1.5
+e = 7
 
 
 
 class MCUBridge(Node):
 
-    global P, B, T, a, beta #, s
-    global kp, ki, kd, dt
+    global a,b,c,d,e
 
     def __init__(self):
         super().__init__('mcu_bridge')
@@ -53,6 +43,9 @@ class MCUBridge(Node):
 
         self.desired_linear_vel = 0.0
         self.desired_angular_vel = None
+
+        self.gimbal_desired_theta=0
+        self.gimbal_integral=0
 
 
         self.alpha=[0.0,0.0,0.0,0.0]
@@ -125,14 +118,14 @@ class MCUBridge(Node):
         
 
 
-        print(self.desired_angular_vel)
+        #print(self.desired_angular_vel)
         
         rudder = 90 - (p_term - d_term)
 
         if(self.desired_angular_vel>=0.4): rudder = 30
         elif(self.desired_angular_vel<=-0.4): rudder = 150
 
-        print(rudder)
+        #print(rudder)
 
         if self.desired_linear_vel==0 and self.desired_angular_vel==0:
             rudder=90
@@ -153,40 +146,80 @@ class MCUBridge(Node):
         return thruster, rudder
     
     def processPlatform(self):
-        
-        
-        phi=self.roll
-        theta=self.pitch
-        R_roll = np.array([[1,0,0],[0,np.cos(phi),-np.sin(phi)],[0,np.sin(phi),np.cos(phi)]])
-        R_pitch = np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
-        R_B = R_roll@R_pitch
+        # gimbal front-back inverse
+        roll=-self.roll
+        pitch=-self.pitch
+        roll_angular_v=-self.x_angular_vel
+        pitch_angular_v=-self.y_angular_vel
 
-        for i in range(4):
-            # 하드웨어상으로 p_i b_i 맞춰주기
-            p_i = np.array([P*np.cos(np.pi/2*i),P*np.sin(np.pi/2*i),0])
-            b_i = np.array([B*np.cos(np.pi/2*i),B*np.sin(np.pi/2*i),0])
-            q_i = (T + p_i)@np.transpose(R_B)
-            l_i = (T + p_i)@np.transpose(R_B)-b_i
-            
-            l = np.linalg.norm(l_i)
-            s = (l*l-a*a)**(1/2)
-            L=l*l-(s*s-a*a)
-            M=2*a*(q_i[2]-b_i[2])
-            N=2*a*(np.cos(beta[i])*(q_i[0]-b_i[0])+np.sin(beta[i])*(q_i[1]-b_i[1]))
-            
-            self.alpha[i] = 90+np.rad2deg(np.arcsin(L/((M**2+N**2)**(1/2))) - np.arctan(N/M))/3
+        p=pitch*30
+        i=0#self.gimbal_integral+ pitch*4/10
+        d=pitch_angular_v/40
         
-        #self.get_logger().info(f'{self.alpha[0]:.0f} {self.alpha[1]:.0f} {self.alpha[2]:.0f} {self.alpha[3]:.0f}')
-        #print(f'{self.roll:1f}, {self.pitch:.1f}')
+        self.gimbal_desired_theta+=(p+i+d)
 
-        return self.alpha[0],self.alpha[1],self.alpha[2],self.alpha[3]
+        if self.gimbal_desired_theta>17.35: self.gimbal_desired_theta=17.35
+        if self.gimbal_desired_theta<-0.55: self.gimbal_desired_theta=-0.55
+        servo_angle=self.gimbal_calculation(self.gimbal_desired_theta)
+        
+        #print(f'{servo_angle:.1f}')
+        print(f'{np.rad2deg(self.pitch):.1f}')
+        print(f'{self.gimbal_desired_theta:.1f}')
+        print(f'{p:.1f}, {i:.1f}, {d:.1f}, {pitch_angular_v:.1f}, ')
+
+        
+        servo1=180-servo_angle
+        servo2=servo_angle
+        if servo1>180:
+            servo1=180
+            servo2=0
+        elif servo1<0:
+            servo1=0
+            servo2=180
+        elif servo2>180:
+            servo2=180
+            servo1=0
+        elif servo2<0:
+            servo2=0
+            servo1=180
+
+        if np.isnan(servo_angle):
+            servo1=90
+            servo2=90
+        
+        print(servo_angle)
+        print(type(servo_angle))
+
+        return servo1,servo2,90,90
+        
+
+        #return self.alpha[0],self.alpha[1],self.alpha[2],self.alpha[3]
         
         
 
         #return 90, front_servo, 90, rear_servo
         
         return 90,90,90,90
+    
+    def gimbal_calculation(self, theta):
 
+        theta=theta-2
+        theta=np.deg2rad(theta)
+
+        # servo-to-stabilizer joint-length squared
+        alpha_squared = np.square(b*np.cos(theta)-e)+np.square(a+b*np.sin(theta))
+        #print(np.sqrt(alpha_squared))
+
+        up = alpha_squared+np.square(d)-np.square(c)
+        down = 2*d*np.sqrt(alpha_squared)
+        #print(up, down)
+        
+
+        right_triangle = np.arcsin((b*np.cos(theta)-e)/alpha_squared)
+
+        servo_angle_radian = np.arccos(up/down)+right_triangle
+        
+        return np.rad2deg(servo_angle_radian)
 
     
 

@@ -35,7 +35,7 @@ from geometry_msgs.msg import Point
 waypoint_dict = [
     {'order': 1, 'x' : 5.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
     {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    {'order': 3, 'x' : 5.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': True},
+    {'order': 3, 'x' : 5.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
     {'order': 4, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
 ]
 

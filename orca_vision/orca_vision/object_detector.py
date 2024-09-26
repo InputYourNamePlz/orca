@@ -271,15 +271,15 @@ class ObjectDetection(Node):
         dx = self.x - self.coordinate_x 
         k = (self.coordinate_y1 - self.coordinate_y2)/3
 
-        intersect_length = dx * math.tan(np.deg2rad(angle - self.yaw)) + self.y
+        intersect_length = dx * math.tan(np.deg2rad(angle - self.yaw))
 
         print(intersect_length, self.x, k)
 
-        if self.coordinate_y1 - k < intersect_length < self.coordinate_y1 : 
+        if k/2 < intersect_length < k : 
             return 1
-        elif self.coordinate_y2 + k < intersect_length < self.coordinate_y1 - k : 
+        elif -k/2 < intersect_length < k/2 : 
             return 2
-        elif self.coordinate_y2 < intersect_length < self.coordinate_y2 + k : 
+        elif -k < intersect_length < -k/2 : 
             return 3
         else : 
             return -1

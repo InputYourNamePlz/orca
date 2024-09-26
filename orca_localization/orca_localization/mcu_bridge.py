@@ -9,11 +9,11 @@ import threading
 import time
 
 
-a = 9.5
-b = 8.1
-c = 10.2
-d = 1.5
-e = 7
+a = 9.45
+b = 7.8664
+c = 10
+d = 1.6
+e = 6.31
 
 
 
@@ -158,8 +158,8 @@ class MCUBridge(Node):
         
         self.gimbal_desired_theta+=(p+i+d)
 
-        if self.gimbal_desired_theta>17.35: self.gimbal_desired_theta=17.35
-        if self.gimbal_desired_theta<-0.55: self.gimbal_desired_theta=-0.55
+        if self.gimbal_desired_theta>22.44: self.gimbal_desired_theta=22.44
+        if self.gimbal_desired_theta<-1.5: self.gimbal_desired_theta=-1.5
         servo_angle=self.gimbal_calculation(self.gimbal_desired_theta)
         
         #print(f'{servo_angle:.1f}')
@@ -203,7 +203,7 @@ class MCUBridge(Node):
     
     def gimbal_calculation(self, theta):
 
-        theta=theta-2
+        theta=theta-7.12
         theta=np.deg2rad(theta)
 
         # servo-to-stabilizer joint-length squared

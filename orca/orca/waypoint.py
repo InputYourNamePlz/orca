@@ -40,18 +40,18 @@ waypoint_dict = [
 ]
 
 yolo_waypoint_dict = [
-    1:{
+    1:[
         {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
         {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    },
+    ],
     2:{
         {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
         {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    },
+    ],
     3:{
         {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
         {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    },
+    ],
 ]
 
 # 얼마나 가까워져야 도착했다고 판단할 지 

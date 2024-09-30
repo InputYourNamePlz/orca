@@ -10,7 +10,8 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 
 class LidarImuProcessor(Node):
-    z_threshold = -0.5  # 예: 10cm 이하의 점은 무시
+    z_lower_threshold = -0.15  # 예: 10cm 이하의 점은 무시
+    z_upper_threshold = 0.15  # 예: 10cm 이하의 점은 무시
 
     def __init__(self):
         super().__init__('lidar_imu_processor')
@@ -53,8 +54,8 @@ class LidarImuProcessor(Node):
         original_scan = LaserScan()
         original_scan.header = self.laser_data.header
         original_scan.header.frame_id = "imu_link"
-        original_scan.angle_min = self.laser_data.angle_min-np.pi
-        original_scan.angle_max = self.laser_data.angle_max-np.pi
+        original_scan.angle_min = self.laser_data.angle_min#-np.pi
+        original_scan.angle_max = self.laser_data.angle_max#-np.pi
         original_scan.angle_increment = self.laser_data.angle_increment
         original_scan.time_increment = self.laser_data.time_increment
         original_scan.scan_time = self.laser_data.scan_time
@@ -81,8 +82,8 @@ class LidarImuProcessor(Node):
         projected_scan = LaserScan()
         projected_scan.header = self.laser_data.header
         projected_scan.header.frame_id = "base_link"
-        projected_scan.angle_min = self.laser_data.angle_min-np.pi
-        projected_scan.angle_max = self.laser_data.angle_max-np.pi
+        projected_scan.angle_min = self.laser_data.angle_min#-np.pi
+        projected_scan.angle_max = self.laser_data.angle_max#-np.pi
         projected_scan.angle_increment = self.laser_data.angle_increment
         projected_scan.time_increment = self.laser_data.time_increment
         projected_scan.scan_time = self.laser_data.scan_time
@@ -99,7 +100,7 @@ class LidarImuProcessor(Node):
             projected_scan.intensities = self.laser_data.intensities
         '''
         
-        valid_indices = rotated_points[:, 2] >= self.z_threshold
+        valid_indices = (rotated_points[:, 2] >= self.z_lower_threshold) & (rotated_points[:, 2] <= self.z_upper_threshold)
 
         # 투영된 점들의 거리 계산 (Z축 필터링 적용)
         projected_ranges = np.sqrt(rotated_points[:, 0]**2 + rotated_points[:, 1]**2)

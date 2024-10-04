@@ -33,36 +33,36 @@ from geometry_msgs.msg import Point
 
 # Waypoint data를 여기에 넣으면 됩니다!
 waypoint_dict = [
-    {'order': 1, 'x' : 5.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    {'order': 3, 'x' : 5.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-    {'order': 4, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    {'order': 1, 'x' : 31.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': True, 'radius': 2.0},
+    {'order': 2, 'x' : 31.0, 'y' : 5.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
+    {'order': 3, 'x' : 2.0, 'y' : 5.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
+    {'order': 4, 'x' : 2.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
 ]
 
-yolo_waypoint_dict = [
+yolo_waypoint_dict = {
     1:[
-        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
+        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
     ],
-    2:{
-        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    2:[
+        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
+        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
     ],
-    3:{
-        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
-        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False},
+    3:[
+        {'order': 2, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
+        {'order': 3, 'x' : 0.0, 'y' : 0.0, 'stay_time' : 3.0, 'yolo_switch_active': False, 'radius': 2.0},
     ],
-]
+}
 
 # 얼마나 가까워져야 도착했다고 판단할 지 
-arrival_check_radius = 1.5
-
+arrival_check_radius = 1.2
 
 
 
 class WaypointPublisher(Node):
 
-    global arrival_check_radius
+    #global arrival_check_radius
+
     global waypoint_dict
     global yolo_waypoint_dict
 
@@ -78,6 +78,7 @@ class WaypointPublisher(Node):
     waypoint_y=0.0
     waypoint_stay_time=0.0
     waypoint_yolo_active=False
+    arrival_check_radius=0.1
     
 
     
@@ -129,7 +130,7 @@ class WaypointPublisher(Node):
         distance = math.sqrt( (self.waypoint_x - self.current_x)**2 + (self.waypoint_y - self.current_y)**2 )
         
         # 거리가 check radius 보다 작으면 카운터 올리기
-        if (arrival_check_radius > distance):
+        if (self.arrival_check_radius > distance):
             self.current_stay_time+=0.1
         else:
             self.current_stay_time=0.0
@@ -156,7 +157,7 @@ class WaypointPublisher(Node):
 
 
         arrival_check_radius_msg = Float32()
-        arrival_check_radius_msg.data = arrival_check_radius
+        arrival_check_radius_msg.data = self.arrival_check_radius
         self.arrival_radius_publisher.publish(arrival_check_radius_msg)
 
         self.get_logger().info('Waypoint : %d, time : %.1f, dist : %.2f' % (self.waypoint_counter, self.current_stay_time, distance))
@@ -170,12 +171,18 @@ class WaypointPublisher(Node):
 
 
     def get_waypoint_data(self):
-        self.waypoint_data = (wp for wp in self.waypoints if wp['order'] == self.waypoint_counter)
+        #print(waypoint_dict[1]['order'])
+        #self.waypoint_data = (wp for wp in waypoint_dict if wp['order'] == self.waypoint_counter)
+        for wp in waypoint_dict:
+            if wp['order']==self.waypoint_counter:
+                self.waypoint_data=wp
+        print(self.waypoint_data)
         self.waypoint_x = self.waypoint_data['x']
         self.waypoint_y = self.waypoint_data['y']
         self.waypoint_stay_time = self.waypoint_data['stay_time']
         self.waypoint_yolo_active = self.waypoint_data['yolo_switch_active']
-
+        self.arrival_check_radius = self.waypoint_data['radius']
+        self.get_logger().info(f'{self.arrival_check_radius}')
         
         
     ##########################################################
@@ -229,7 +236,7 @@ class WaypointPublisher(Node):
         '''
 
         num_points=30
-        radius=arrival_check_radius
+        radius=self.arrival_check_radius
         points=[]
         for i in range(num_points+1):
             angle = 2.0*math.pi/num_points*i
@@ -253,7 +260,7 @@ class WaypointPublisher(Node):
 
 
         gauge_num_points=int(num_points*(self.current_stay_time/self.waypoint_stay_time))
-        radius=arrival_check_radius/2.0
+        radius=self.arrival_check_radius/2.0
         gauge_points=[]
         for i in range(gauge_num_points+0):
             angle = 2.0*math.pi/num_points*i

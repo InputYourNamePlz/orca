@@ -42,7 +42,7 @@ class Autopilot(Node):
     waypoint_relative_x=0.0
     waypoint_relative_y=0.0
 
-    jump_distance = 0.4
+    jump_distance = 0.3
     tree_node_count = 10
     spreading_angle = 0.628
     max_iteration = 1000
@@ -175,7 +175,7 @@ class Autopilot(Node):
 
 
         if(len(route_tree)>5):
-            follower=np.array(route_tree[4])
+            follower=np.array(route_tree[5])
         elif(len(route_tree)<=2):
             follower=np.array([0.0,0.0])
         else:

@@ -7,6 +7,7 @@ import numpy as np
 from scipy.signal import butter, lfilter
 import threading
 import time
+import csv
 
 
 a = 9.45
@@ -30,9 +31,9 @@ class MCUBridge(Node):
         self.twist_subscriber = self.create_subscription(Twist, 'cmd_vel', self.twist_callback, 10)
 
 
-        #self.thread = threading.Thread(target=self.serial_read_thread)
-        #self.thread.daemon = True
-        #self.thread.start()
+        self.thread = threading.Thread(target=self.serial_read_thread)
+        self.thread.daemon = True
+        self.thread.start()
 
         self.imu_msg=None
         self.roll = 0.0
@@ -56,6 +57,12 @@ class MCUBridge(Node):
 
         self.last_time=time.time()
 
+        self.filename="/home/orinnx/kaboat.csv"
+        self.file = open(self.filename, 'a', newline='', encoding='utf-8')
+        self.writer = csv.writer(self.file)
+
+        self.pwm=1500
+
 
 
     def serial_read_thread(self):
@@ -63,8 +70,9 @@ class MCUBridge(Node):
             if self.serial_port.in_waiting > 0:
                 line = self.serial_port.readline().decode('utf-8').strip()
                 if line:
-                    self.get_logger().info(line)
-
+                    self.pwm=int(line)
+                    #self.get_logger().info(line)
+                    
 
     def imu_callback(self, msg):
         #print(f'{(time.time()-self.last_time)*1000} ms')
@@ -87,8 +95,12 @@ class MCUBridge(Node):
         msg=self.imu_msg
         x,y,z,w = msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
         self.roll = np.arctan2(2 * (w * x + y * z),1 - 2 * (x * x + y * y))
-        self.pitch = np.arcsin(2 * (w * y - z * x))
+        self.pitch = np.rad2deg(np.arcsin(2 * (w * y - z * x)))
         self.x_angular_vel, self.y_angular_vel, self.z_angular_vel = msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z
+        
+        #self.writer.writerow([int(self.pwm), round(float(self.pitch), 3)])
+        #self.file.flush()  # 즉시 디스크에 쓰기
+
         #print(self.z_angular_vel)
         
         
@@ -105,17 +117,15 @@ class MCUBridge(Node):
     def processTwist(self):
         #thruster = 1500 + self.desired_linear_vel*300
         
-        if (self.desired_linear_vel>0):thruster=1580
+        if (self.desired_linear_vel>0):thruster=1610
         else:thruster=1500
         #if(thruster>1500): thruster=1650
         #if(thruster<1450): thruster=1450
         #rudder = 90 - self.desired_angular_vel*500
 
 
-        p_term = (self.desired_angular_vel)*100
-        d_term = self.z_angular_vel*1.5
-
-        
+        p_term = (self.desired_angular_vel)*300
+        d_term = self.z_angular_vel*4.3        
 
 
         #print(self.desired_angular_vel)
@@ -147,29 +157,39 @@ class MCUBridge(Node):
     
     def processPlatform(self):
         # gimbal front-back inverse
+        '''
         roll=-self.roll
         pitch=-self.pitch
         roll_angular_v=-self.x_angular_vel
         pitch_angular_v=-self.y_angular_vel
 
-        p=pitch*30
+        p=np.rad2deg(pitch)*0.25
         i=0#self.gimbal_integral+ pitch*4/10
-        d=pitch_angular_v/40
-        
-        self.gimbal_desired_theta+=(p+i+d)
+        d=pitch_angular_v/30
+        '''
 
+
+        x=self.pwm
+        
+        #self.gimbal_desired_theta+=(p+i+d)
+        #self.gimbal_desired_theta = -self.pitch
+        self.gimbal_desired_theta=(0.0001505*x**2 - 0.4446*x + 319.8)+7
+        #self.gimbal_desired_theta += (p+i+d)
+        #print("self.gimbal_desired_theta : ", self.gimbal_desired_theta)
+        #print("p : ", p)
         if self.gimbal_desired_theta>22.44: self.gimbal_desired_theta=22.44
         if self.gimbal_desired_theta<-1.5: self.gimbal_desired_theta=-1.5
         servo_angle=self.gimbal_calculation(self.gimbal_desired_theta)
         
         #print(f'{servo_angle:.1f}')
-        print(f'{np.rad2deg(self.pitch):.1f}')
+        #print(f'{np.rad2deg(self.pitch):.1f}')
+        #print(-self.pitch)
         print(f'{self.gimbal_desired_theta:.1f}')
-        print(f'{p:.1f}, {i:.1f}, {d:.1f}, {pitch_angular_v:.1f}, ')
 
         
         servo1=180-servo_angle
         servo2=servo_angle
+        #print(f'{p:.1f}, {i:.1f}, {d:.1f}, {pitch_angular_v:.1f}, ')
         if servo1>180:
             servo1=180
             servo2=0
@@ -177,18 +197,18 @@ class MCUBridge(Node):
             servo1=0
             servo2=180
         elif servo2>180:
-            servo2=180
             servo1=0
         elif servo2<0:
             servo2=0
             servo1=180
+            servo2=180
 
         if np.isnan(servo_angle):
             servo1=90
             servo2=90
         
-        print(servo_angle)
-        print(type(servo_angle))
+        #print(servo_angle)
+        #print(type(servo_angle))
 
         return servo1,servo2,90,90
         

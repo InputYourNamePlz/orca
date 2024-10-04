@@ -213,8 +213,8 @@ class OrcaScanMatcher(Node):
         ranges = np.array(msg.ranges)
 
         mask = (ranges >= msg.range_min) & (ranges <= msg.range_max)
-        angles = angles[mask]
-        ranges = ranges[mask]
+        angles = angles[mask-1]
+        ranges = ranges[mask-1]
 
         x = ranges * np.cos(angles)
         y = ranges * np.sin(angles)

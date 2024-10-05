@@ -68,9 +68,9 @@ class ObjectDetection(Node):
         self.dist_coeffs = np.zeros((5, 1))  # 왜곡 계수 (보정된 상태로 가정)
 
 
-        self.coordinate_x = 1.5
-        self.coordinate_y1 = 1.5 # 오른쪽 끝
-        self.coordinate_y2 = -1.5 # 왼쪽 끝
+        self.coordinate_x = 1.5 # 판 x좌표
+        self.coordinate_y1 = 1.5 # 판 정면에서 봤을때 오른쪽 끝 (y좌표 큰 점)
+        self.coordinate_y2 = -1.5 # '' 왼쪽 끝 (y좌표 작은 점)
 
         self.x = None
         self.y = None
@@ -253,9 +253,9 @@ class ObjectDetection(Node):
         angle = math.sqrt(h_angle**2 + v_angle**2)
 
         if dx < 0:
-            return -angle
-        else:
             return angle
+        else:
+            return -angle
     
     #####################################################
     #####################################################
@@ -269,18 +269,18 @@ class ObjectDetection(Node):
     def lane_decision(self, angle) :
         # 그림판의 위치
         dx = self.x - self.coordinate_x 
-        k = (self.coordinate_y1 - self.coordinate_y2)/3
+        k = np.abs((self.coordinate_y1 - self.coordinate_y2)/3)
 
-        intersect_length = dx * math.tan(np.deg2rad(angle - self.yaw))
+        intersect_y = dx * math.tan(np.deg2rad(-angle - self.yaw-45)) + self.y
 
-        print(intersect_length, self.x, k)
+        print(intersect_y, self.x, k)
 
-        if k/2 < intersect_length < k : 
-            return 1
-        elif -k/2 < intersect_length < k/2 : 
-            return 2
-        elif -k < intersect_length < -k/2 : 
+        if self.coordinate_y2 < intersect_y < self.coordinate_y2+k : 
             return 3
+        elif self.coordinate_y2+k < intersect_y < self.coordinate_y1-k : 
+            return 2
+        elif self.coordinate_y1-k < intersect_y < self.coordinate_y1 : 
+            return 1
         else : 
             return -1
     
